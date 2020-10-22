@@ -9,7 +9,6 @@ class CheckStatus(object):
         taskresult = "Not available" 
         with open("output.txt","r") as file2:
             for line in file2:
-                print('>>>', line.split())
                 a = line.split()
                 if a[0] == task_id:
                     taskresult = line[36:len(line)]
