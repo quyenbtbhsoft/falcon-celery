@@ -34,7 +34,7 @@ def fib(self,n):
     db = client.test
     db.inventory.insert_one(
         {
-            "ID": "Is",
+            "ID": str(self.request.id),
             "result": str1,
         }
     )

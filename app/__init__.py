@@ -3,9 +3,16 @@ import os
 import falcon
 from app.tasks import fib
 from pymongo import MongoClient
+#from falcon_auth import FalconAuthMiddleware, BasicAuthBackend
 
 client = MongoClient("mongodb+srv://guest:guest@fibonacci.clxiv.mongodb.net/fibonacci?retryWrites=true&w=majority")
 
+#user_loader = lambda username, password: {'username':username}
+#auth_backend = BasicAuthBackend(user_loader)
+#auth_middleware = FalconAuthMiddleware(auth_backend)
+#application = falcon.API(middleware=[auth_middleware])
+
+application = falcon.API()
 class CheckStatus(object):
 
     def on_get(self, req, resp, task_id):           
@@ -13,8 +20,6 @@ class CheckStatus(object):
         with open("output.txt","r") as file2:
             for line in file2:
                 a = line[:36]
-                print(a)
-                print(task_id)
                 if a == task_id:
                     taskresult = line[36:len(line)]
                     break
@@ -36,36 +41,41 @@ class CreateTask(object):
     
 
 class SignUp(object):
-    def on_post(self, req, resp):
+    
+    def on_post(self, req, resp,username,password):
         db = client.test
-        raw_json = req.stream.read()
-        result = json.loads(raw_json,encoding='utf-8')
         col = db.login
-        myquery = {"ID":result['id']}
-        doc = col.find(myquery)
-        if doc is None:
-            db.login.insert_one(
-            {
-            "ID": result['id'],
-            "password": result['password'],
-            }
-            )
+        filtered_dict = {"username":username}
+        if col.count_documents(filtered_dict):
+            print(1)
+            resp.body = json.dump("Already exist")
         else:
-            resp.body = json.dump("Already exist")    
+            print(2)
+            db.login.insert_one(
+                {
+                    "username": username,
+                    "password": password,
+                }
+            )   
 
 class LogIn(object):
-    def on_get(self,req,resp,id,password):
+    
+    def on_get(self,req,resp,username,password):
         db = client.test
         col = db.login
-        myquery = {"ID":id}
-        doc = col.find(myquery)
-        if doc["password"] == password:
-            resp.body = json.dumps("Success")
+        filtered_dict = {"username":username}
+        if col.count_documents(filtered_dict):
+            mydoc = col.find(filtered_dict)
+            for x in mydoc:
+                if x["password"] == password:    
+                    resp.body = json.dumps("Success")
+                else:
+                    resp.body = json.dumps("Failed")                
         else:
             resp.body = json.dumps("Something wrong") 
 
-application = falcon.API()
+
 application.add_route('/create', CreateTask())
 application.add_route('/status/{task_id}', CheckStatus())
-application.add_route('/login/{id}/{password}',SignUp())
-application.add_route('/signup', SignUp())
+application.add_route('/login/{username}/{password}',LogIn())
+application.add_route('/signup/{username}/{password}', SignUp())
