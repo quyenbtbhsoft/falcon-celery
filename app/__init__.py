@@ -3,16 +3,16 @@ import os
 import falcon
 from app.tasks import fib
 from pymongo import MongoClient
-#from falcon_auth import FalconAuthMiddleware, BasicAuthBackend
+from falcon_auth import FalconAuthMiddleware, BasicAuthBackend
+from core.utils import json_serializer
 
 client = MongoClient("mongodb+srv://guest:guest@fibonacci.clxiv.mongodb.net/fibonacci?retryWrites=true&w=majority")
 
-#user_loader = lambda username, password: {'username':username}
-#auth_backend = BasicAuthBackend(user_loader)
-#auth_middleware = FalconAuthMiddleware(auth_backend)
-#application = falcon.API(middleware=[auth_middleware])
+user_loader = lambda username, password: {'username':username}
+auth_backend = BasicAuthBackend(user_loader)
+auth_middleware = FalconAuthMiddleware(auth_backend)
+application = falcon.API(middleware=[auth_middleware,JSONTranslator()])
 
-application = falcon.API()
 class CheckStatus(object):
 
     def on_get(self, req, resp, task_id):           
@@ -47,10 +47,8 @@ class SignUp(object):
         col = db.login
         filtered_dict = {"username":username}
         if col.count_documents(filtered_dict):
-            print(1)
             resp.body = json.dump("Already exist")
         else:
-            print(2)
             db.login.insert_one(
                 {
                     "username": username,
@@ -73,6 +71,34 @@ class LogIn(object):
                     resp.body = json.dumps("Failed")                
         else:
             resp.body = json.dumps("Something wrong") 
+
+class JSONTranslator():
+    def process_request(self, re, resp):
+        if req.content_length in (None,0):
+            return     
+        body = req.stream.read()
+        if not body:
+            raise falcon.HTTPBadRequest(
+                "Empty request body. A valid JSON document is required."
+            )
+        try:
+            req.context['request'] = json.loads(body.decode('utf-8'))
+        except (ValueError,UnicodeDecodeError):
+            raise falcon.HTTPError(
+                falcon.HTTP_753,
+                'Malformed JSON. Could not decode the request body.'
+                'The JSON was incorrect or not encoded as UTF-8'
+            )
+    def process_response(self, req, resp):
+        if 'response' not in resp.context:
+            return
+
+        resp.body = json.dumps(
+            resp.context['response'],
+            default = json_serializer
+        )            
+
+
 
 
 application.add_route('/create', CreateTask())
