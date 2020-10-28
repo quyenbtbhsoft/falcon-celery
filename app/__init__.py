@@ -3,15 +3,10 @@ import os
 import falcon
 from app.tasks import fib
 from pymongo import MongoClient
-#from falcon_auth import FalconAuthMiddleware, BasicAuthBackend
+from falcon_auth import FalconAuthMiddleware, BasicAuthBackend
 #from core.utils import json_serializer
 
 client = MongoClient("mongodb+srv://guest:guest@fibonacci.clxiv.mongodb.net/fibonacci?retryWrites=true&w=majority")
-
-#user_loader = lambda username, password: {'username':username}
-#auth_backend = BasicAuthBackend(user_loader)
-#auth_middleware = FalconAuthMiddleware(auth_backend,exempt_routes=['/exempt'],exempt_method=['HEAD'])
-#application = falcon.API(middleware=[auth_middleware,JSONTranslator()])
 
 class CheckStatus(object):
 
@@ -40,14 +35,20 @@ class CreateTask(object):
         resp.body = json.dumps(result)
     
 
+user_loader = lambda username, password: {'username':username,'password':password}
+auth_backend = BasicAuthBackend(user_loader)
+auth_middleware = FalconAuthMiddleware(auth_backend,exempt_routes=['/signup'],exempt_methods=['POST'])
+application = falcon.API(middleware=[auth_middleware])
+
 class SignUp(object):
     
     def on_post(self, req, resp,username,password):
         db = client.test
         col = db.login
         filtered_dict = {"username":username}
-        if col.count_documents(filtered_dict):
-            resp.body = json.dump("Already exist")
+        mydoc = col.find(filtered_dict)
+        if mydoc:
+            resp.body = json.dumps("Already exist")
         else:
             db.login.insert_one(
                 {
@@ -62,8 +63,8 @@ class LogIn(object):
         db = client.test
         col = db.login
         filtered_dict = {"username":username}
-        if col.count_documents(filtered_dict):
-            mydoc = col.find(filtered_dict)
+        mydoc = col.find(filtered_dict)
+        if mydoc:
             for x in mydoc:
                 if x["password"] == password:    
                     resp.body = json.dumps("Success")
@@ -97,9 +98,6 @@ class JSONTranslator():
             resp.context['response'],
             default = json_serializer
         )            
-
-
-application = falcon.API()
 
 application.add_route('/create', CreateTask())
 application.add_route('/status/{task_id}', CheckStatus())

@@ -28,8 +28,7 @@ def fib(self,n):
     str1 += "]" + os.linesep
 
     with open("output.txt","a+") as file1:   	
-        file1.write(str(self.request.id)+" ")
-        file1.write(str1)
+        file1.write(str(self.request.id)+" "+str1)
     
     db = client.test
     db.inventory.insert_one(
