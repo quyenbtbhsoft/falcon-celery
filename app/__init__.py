@@ -3,42 +3,46 @@ import os
 import falcon
 from app.tasks import fib
 from pymongo import MongoClient
-from falcon_auth import FalconAuthMiddleware, BasicAuthBackend
+import jwt
+from RandomWordGenerator import RandomWord 
 #from core.utils import json_serializer
 
 client = MongoClient("mongodb+srv://guest:guest@fibonacci.clxiv.mongodb.net/fibonacci?retryWrites=true&w=majority")
+key = 'secret';
+token = '';
 
 class CheckStatus(object):
-
-    def on_get(self, req, resp, task_id):           
-        taskresult = "Not available" 
-        with open("output.txt","r") as file2:
-            for line in file2:
-                a = line[:36]
-                if a == task_id:
-                    taskresult = line[36:len(line)]
-                    break
-        result = {'result': taskresult[0:len(taskresult)-1]}
-        resp.status = falcon.HTTP_200
-        resp.body = json.dumps(result)
+    
+    def on_get(self, req, resp, task_id,token):           
+        if token == '':
+            json.dumps("You need to login first")
+        else:     
+            taskresult = "Not available" 
+            with open("output.txt","r") as file2:
+                for line in file2:
+                    a = line[:36]
+                    if a == task_id:
+                        taskresult = line[36:len(line)]
+                        break
+            result = {'result': taskresult[0:len(taskresult)-1]}
+            resp.status = falcon.HTTP_200
+            resp.body = json.dumps(result)
 
 class CreateTask(object):
-
-    def on_post(self, req, resp):
-        raw_json = req.stream.read()
-        result = json.loads(raw_json, encoding='utf-8')
-        task = fib.delay(int(result['number']))
-        resp.status = falcon.HTTP_200
-        result = {
-           'task_id': task.id
-            }
-        resp.body = json.dumps(result)
     
-
-user_loader = lambda username, password: {'username':username,'password':password}
-auth_backend = BasicAuthBackend(user_loader)
-auth_middleware = FalconAuthMiddleware(auth_backend,exempt_routes=['/signup'],exempt_methods=['POST'])
-application = falcon.API(middleware=[auth_middleware])
+    def on_post(self, req, resp):
+        if token == '':
+            json.dumps("You need to login first")
+        else:
+            raw_json = req.stream.read()
+            result = json.loads(raw_json, encoding='utf-8')
+            task = fib.delay(int(result['number']))
+            resp.status = falcon.HTTP_200
+            result = {
+               'task_id': task.id
+            }
+            resp.body = json.dumps(result)
+    
 
 class SignUp(object):
     
@@ -46,8 +50,7 @@ class SignUp(object):
         db = client.test
         col = db.login
         filtered_dict = {"username":username}
-        mydoc = col.find(filtered_dict)
-        if mydoc:
+        if col.count_documents(filtered_dict): 
             resp.body = json.dumps("Already exist")
         else:
             db.login.insert_one(
@@ -55,12 +58,14 @@ class SignUp(object):
                     "username": username,
                     "password": password,
                 }
-            )   
+            )
+            resp.body = json.dumps("Success")   
 
 class LogIn(object):
     
-    def on_get(self,req,resp,username,password):
+    def on_get(self,req,resp,username,password):    
         db = client.test
+        token = ''
         col = db.login
         filtered_dict = {"username":username}
         mydoc = col.find(filtered_dict)
@@ -68,12 +73,16 @@ class LogIn(object):
             for x in mydoc:
                 if x["password"] == password:    
                     resp.body = json.dumps("Success")
+                    token = jwt.encode({'password':password},key)  
+                    print(type(token))                   
                 else:
                     resp.body = json.dumps("Failed")                
         else:
-            resp.body = json.dumps("Something wrong") 
+            resp.body = json.dumps("Something wrong")
+        return token     
 
 class JSONTranslator():
+    
     def process_request(self, re, resp):
         if req.content_length in (None,0):
             return     
@@ -98,7 +107,7 @@ class JSONTranslator():
             resp.context['response'],
             default = json_serializer
         )            
-
+app = application = falcon.API()
 application.add_route('/create', CreateTask())
 application.add_route('/status/{task_id}', CheckStatus())
 application.add_route('/login/{username}/{password}',LogIn())

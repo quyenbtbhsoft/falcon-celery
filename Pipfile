@@ -5,7 +5,17 @@ verify_ssl = true
 
 [dev-packages]
 
-[packages]
-
 [requires]
 python_version = "3.8"
+
+[packages]
+celery = "*"
+rabbitmq = "*"
+gunicorn = "*"
+pymongo = "*"
+requests = "*"
+pyjwt = "*"
+random-word-generator = "*"
+
+[packages.falcon-auth]
+extras = [ "backend-jwt",]
