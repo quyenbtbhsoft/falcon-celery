@@ -14,8 +14,8 @@ rabbitmq = "*"
 gunicorn = "*"
 pymongo = "*"
 requests = "*"
-pyjwt = "*"
-random-word-generator = "*"
+PyJWT = "*"
+Random-Word-Generator = "*"
 
 [packages.falcon-auth]
-extras = [ "backend-jwt",]
+extras = [ "backend-hawk", "backend-jwt",]
